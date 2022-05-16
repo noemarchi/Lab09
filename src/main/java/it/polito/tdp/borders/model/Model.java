@@ -1,7 +1,10 @@
 package it.polito.tdp.borders.model;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -11,6 +14,9 @@ import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.ConnectivityInspector;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.SimpleGraph;
+import org.jgrapht.traverse.BreadthFirstIterator;
+import org.jgrapht.traverse.GraphIterator;
+
 import it.polito.tdp.borders.db.BordersDAO;
 
 public class Model 
@@ -87,5 +93,90 @@ public class Model
 		
 		return connessi.size();
 	}
+	
+	public List<Country> getAllCountries()
+	{
+		this.dao.loadAllCountries(idMapAll);
+		
+		List<Country> stati = new ArrayList<Country>(this.idMapAll.values());
+		Collections.sort(stati);
+		
+		return stati;
+	}
 
+	private Map<Country, Country> visitaGrafo(Country partenza)
+	{
+		// creo iteratore
+		GraphIterator<Country, DefaultEdge> visita = new BreadthFirstIterator<>(grafo, partenza);
+		
+		// creo l'albero inverso
+		//	<stato, predecessore>
+		Map<Country, Country> alberoInverso = new HashMap<Country, Country>();
+		alberoInverso.put(partenza, null);
+		
+		// aggancio il listener all'iteratore
+		visita.addTraversalListener(new RegistraAlberoDiVisita(alberoInverso, this.grafo));
+		
+		while(visita.hasNext())
+		{
+			Country c = visita.next();
+		}
+		
+		return alberoInverso;
+	}
+	
+	public List<Country> getStatiRaggiungibili(Country partenza)
+	{
+		Map<Country, Country> alberoInverso = this.visitaGrafo(partenza);
+		
+		List<Country> lista = new ArrayList<Country>(alberoInverso.keySet());
+		
+		Collections.sort(lista);
+		
+		return lista;
+	}
+	
+	private Map<Integer, Country> visitaIterativa(Country partenza)
+	{
+		Map<Integer, Country> visitati = new HashMap<Integer, Country>();
+		Map<Integer, Country> daVisitare = new HashMap<Integer, Country>();
+		
+		daVisitare.put(partenza.getId(), partenza);
+		
+		while(!daVisitare.isEmpty())
+		{
+			List<Country> stati = new LinkedList<Country>(daVisitare.values());
+			Country stato = stati.get(0);
+			
+			visitati.put(stato.getId(), stato);
+			
+			List<Country> vicini = new ArrayList<Country>();
+			vicini = Graphs.neighborListOf(grafo, stato);
+			
+			for(Country vicino: vicini)
+			{
+				if(!visitati.containsKey(vicino.getId()))
+				{
+					daVisitare.put(vicino.getId(), vicino);
+				}
+			}
+			
+			for(Country v: visitati.values())
+			{
+				daVisitare.remove(v.getId());
+			}
+		}
+		
+		return visitati;
+	}
+
+	public List<Country> getRaggiungibiliIterativo(Country partenza)
+	{
+		Map<Integer, Country> visitati = this.visitaIterativa(partenza);
+		List<Country> lista = new ArrayList<Country>(visitati.values());
+		
+		Collections.sort(lista);
+		
+		return lista;
+	}
 }
